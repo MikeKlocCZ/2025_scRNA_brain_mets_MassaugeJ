@@ -40,6 +40,14 @@ for (directory in directories){
 # 10X data aligned with STARsolo, mm10 , ensdb102
 sce <- readRDS("input_data/brainMets_sce.rds")
 
+# STEP 1-> remove empty drops
+table(colData(sce)$emptyDropsCR.isEmpty)
+#FALSE  TRUE 
+#37479  5365
+
+sce <- sce[,!colData(sce)$emptyDropsCR.isEmpty]
+# 22542 37479
+
 ########
 #STEP 1: Check the sample annotation
 unique(colData(sce)$SampleName)
@@ -91,45 +99,12 @@ hashtags <- c("HTO_A0255"="MDA231Br_cancer",
 
 altExp(sce) <- altExp(sce)[rownames(altExp(sce)) %in% names(hashtags),]
 
-hto.counts <- as.matrix(counts(altExp(sce)))
-dim(hto.counts)
-#  7 42844
 
-#check specificity of the HTOs in the scatter plots
-df.plot <- as.data.frame(log2(t(hto.counts) +1))
-df.plot <- df.plot |> mutate(Sample =  str_remove(rownames(df.plot),"-.*"))
-
-pdf(paste0("FIGURES/01_MDA231_HTOs_inMouseSamples.pdf"), width = 5,height = 5)
-ggplot(df.plot, aes(x=HTO_A0255,y=HTO_A0307, color = Sample)) + geom_point() + xlab("anti_human HTO_A0255")  + ylab("anti_mouse HTO_A0307") +
-  ggtitle("Exp1, MDA231 barcodes logexp")
-
-ggplot(df.plot, aes(x=HTO_A0258,y=HTO_A0308, color = Sample)) + geom_point() + xlab("anti_human HTO_A0258")  + ylab("anti_mouse HTO_A0308") +
-  ggtitle("Exp2, MDA231 barcodes logexp")
-dev.off()
-
-pdf(paste0("FIGURES/01_HCC1954_HTOs_inMouseSamples.pdf"), width = 5,height = 5)
-ggplot(df.plot, aes(x=HTO_A0253,y=HTO_A0306, color = Sample)) + geom_point() + xlab("anti_human HTO_A0253")  + ylab("anti_mouse HTO_A0306 (also used in Exp2)") +
-  ggtitle("Exp1, HCC1954 barcodes logexp")
-
-ggplot(df.plot, aes(x=HTO_A0256,y=HTO_A0306, color = Sample)) + geom_point() + xlab("anti_human HTO_A0256")  + ylab("anti_mouse HTO_A0308 (also used in Exp1)") +
-  ggtitle("Exp2, HCC1954 barcodes logexp")
-dev.off()
-
-# APPARENLTY THE HTOs were not human or mouse specific
-# Here we are dealing with mouse cells only -> anti-human HTOs should not be present
-#luckily, the human cancer cells vs the murine cells were also fluorescently tagged
-# red only -> human cells, red + green -> TME, unlabelled -> stroma  
-
-
-#for demultiplexing, use only the mouse HTOs
-# split by the experiments
-
-#split by batches
 sce2 <- sce[,colData(sce)$Experiment == "2"]
 sce1 <- sce[,colData(sce)$Experiment == "1"]
 
 
-#
+# Check the hashtag expression before the QC on the cells
 hto.counts.s1 <- as.matrix(counts(altExp(sce1)))
 hto.counts.s1 <- hto.counts.s1[c("HTO_A0306","HTO_A0307"),]
 rownames(hto.counts.s1) <- c("HCC1954","MDA231")
@@ -139,7 +114,6 @@ hto.counts.s2 <- hto.counts.s2[c("HTO_A0308","HTO_A0306"),]
 rownames(hto.counts.s2) <- c("MDA231","HCC1954")
 
 
-# QC plot
 #logUMI vs logHTO
 logUMIs <- log10(colSums(counts(sce1)) +1)
 logHTOs <- log10(colSums(hto.counts.s1) +1)
@@ -156,8 +130,8 @@ logUMIs.2 <- log10(colSums(counts(sce2)) +1)
 logHTOs.2 <- log10(colSums(hto.counts.s2) +1)
 
 df.plot.2 <- data.frame(logUMIs.2 = logUMIs.2,
-                      logHTOs.2 = logHTOs.2,
-                      compartment = colData(sce2)$SampleName)
+                        logHTOs.2 = logHTOs.2,
+                        compartment = colData(sce2)$SampleName)
 
 pdf("FIGURES/01_Exp2_HtosVsUmis.pdf")
 ggplot(df.plot.2, aes(logUMIs.2,logHTOs.2,color = compartment) ) + geom_point() + ggtitle("Exp2, HTOs vs UMI exprs")
@@ -165,6 +139,7 @@ dev.off()
 
 
 #plot HTOs
+
 df.plot.HTOs.1 <- data.frame(log10(t(hto.counts.s1)+1),
                              compartment = colData(sce1)$SampleName)
 
@@ -177,117 +152,20 @@ ggplot(df.plot.HTOs.1, aes(HCC1954,MDA231,color = compartment) ) + geom_point() 
 ggplot(df.plot.HTOs.2, aes(HCC1954,MDA231,color = compartment) ) + geom_point() + ggtitle("Exp2, HTOs")
 dev.off()
 
+rm(sce1, sce2)
+
+# APPARENLTY THE HTOs were not human or mouse specific
+# Here we are dealing with mouse cells only -> anti-human HTOs should not be present
+#luckily, the human cancer cells vs the murine cells were also fluorescently tagged
+# red only -> human cells, red + green -> TME, unlabelled -> stroma  
 
 
-
-
-
-#demultiplexing + doublets base on HTOs
-# rund directly hashedDrops...it will assign
-#it establishes ambient profile of HTOs and then test the cells on that...should do it SampleSpecific
-set.seed(132)
-hash.stats.s1 <- hashedDrops(hto.counts.s1 , constant.ambient = TRUE) #only 2 HTOs
-hash.stats.s2 <- hashedDrops(hto.counts.s2 , constant.ambient = TRUE)
-
-#name the Barcodes correctly
-hash.stats.s1$cell.line <- ifelse(hash.stats.s1$Best == 1, "HCC1954", "MDA231" )
-hash.stats.s2$cell.line <- ifelse(hash.stats.s2$Best == 2, "HCC1954", "MDA231" ) #here they are swapped
-
-
-#check the assigned ambient profiles...DIFFERENT!
-metadata(hash.stats.s1)$ambient
-#  HCC1954   MDA231 
-#38.58537 22.44611 
-
-metadata(hash.stats.s2)$ambient
-# MDA231  HCC1954 
-# 15.51681 30.75386 
-
-
-#########
-# Define color
-c1 <- rgb(173, 216, 230, max = 255, alpha = 80, names = "lt.blue")
-
-# Open PDF device
-pdf("FIGURES/01_HTOs_profiles_ambient_estimation.pdf", width = 6, height = 6)
-par(mfrow = c(2, 2))  # 2x2 layout
-
-hist(log10(hto.counts.s1[1, ]), breaks = 30, col = c1,
-     main = "Exp. 1, HCC1954", xlab = "Log10 HTO1 counts")
-abline(v = log10(metadata(hash.stats.s1)$ambient[1]), col = "red", lty = 2)
-
-hist(log10(hto.counts.s1[2, ]), breaks = 30, col = c1,
-     main = "Exp. 1, MDA231", xlab = "Log10 HTO2 counts")
-abline(v = log10(metadata(hash.stats.s1)$ambient[2]), col = "red", lty = 2)
-
-hist(log10(hto.counts.s2[2, ]), breaks = 30, col = c1,
-     main = "Exp. 2, HCC1954", xlab = "Log10 HTO2 counts")
-abline(v = log10(metadata(hash.stats.s2)$ambient[2]), col = "red", lty = 2)
-
-hist(log10(hto.counts.s2[1, ]), breaks = 30, col = c1,
-     main = "Exp. 2, MDA231", xlab = "Log10 HTO1 counts")
-abline(v = log10(metadata(hash.stats.s2)$ambient[1]), col = "red", lty = 2)
-
-dev.off()
-
-
-#how many cells we have?
-sum(hash.stats.s1$Confident) + sum(hash.stats.s2$Confident)
-#21698
-
-
-##########
-pdf("FIGURES/01_Demultiplexing.pdf", width = 8, height = 6)
-par(mfrow=c(1,2))
-r.s1 <- rank(-hash.stats.s1$Total)
-r.s2 <- rank(-hash.stats.s2$Total)
-color_low.s1 = c("black","red")[as.factor(hash.stats.s1$Confident )]
-color_low.s2 = c("black","red")[as.factor(hash.stats.s2$Confident )]
-plot(r.s1, hash.stats.s1$Total, log="xy", xlab="Rank", ylab="Total HTO count", main="Confident (exp1)",col=color_low.s1)
-plot(r.s2, hash.stats.s2$Total, log="xy", xlab="Rank", ylab="Total HTO count", main="Confident (exp2)",col=color_low.s2)
-dev.off()
-
-#In exp. 1 some of he most expressed HTOs are not cofident --> quite likely doublets
-# association is based on logFC between the 1st and 2nd most abundant barcode, in these it's very low
-
-sel <- hash.stats.s1[hash.stats.s1$Confident == FALSE,]
-sel <- sel[order(-sel$Total),]
-head(sel)
-
-# DataFrame with 6 rows and 7 columns
-# Total      Best    Second      LogFC    LogFC2   Doublet Confident
-# <numeric> <integer> <integer>  <numeric> <numeric> <logical> <logical>
-#   TME_1-GGTTAACCAGCTCTGG        53148         2        NA 0.39770316        NA        NA     FALSE
-# Stroma_1-GTTGTGAGTGAGATCG     45034         1        NA 1.23788534        NA        NA     FALSE
-# Stroma_1-TTGGGCGGTACGGGAT     35017         2        NA 0.00436291        NA        NA     FALSE
-# Stroma_1-AAAGAACAGAGGGCGA     30360         2        NA 0.28735066        NA        NA     FALSE
-# Stroma_1-GTTGTAGTCTGGGCAC     25645         2        NA 1.88308726        NA        NA     FALSE
-# Stroma_1-TGCGGGTCAAGCGGAT     21880         2        NA 0.87160746        NA        NA     FALSE
-
-#only confident:
-hash.stats.s1 <- hash.stats.s1[hash.stats.s1$Confident,]
-hash.stats.s2 <- hash.stats.s2[hash.stats.s2$Confident,]
-
-
-#IMPORTANT STEP: select only those cells confidently assigned to the wanted conditions
-sce1 <- sce1[ , rownames(hash.stats.s1)]
-sce2 <- sce2[ , rownames(hash.stats.s2)]
-
-sce1$cell.line <- hash.stats.s1$cell.line
-sce2$cell.line  <- hash.stats.s2$cell.line
-
-######
-# AT THIS STAGE WE HAVE DEMULTIPLEXED THE CELL LINES
-
-sce <- cbind(sce1,sce2)
-
-
-########
-#STEP 4:  BAD CELLS REMOVAL
-#
+#Now, we perform the QC on the cells and then demultiplex the set of cells that passed the QC
+# BAD CELLS REMOVAL
 #CHECK Mitochondrial content
 #quality control: abundance of mitochondrial RNA + total counts
 # Mitochondrial Reads
+
 
 Mt <- rownames(sce)[which(str_detect(rowData(sce)$SYMBOL,"mt-."))]
 df <- perCellQCMetrics(sce,  subsets=list(Mito=Mt)) #exclude the tags
@@ -298,23 +176,23 @@ sum(QC.lib)
 
 QC.mit <- isOutlier(df$subsets_Mito_percent,  type="higher", nmads = 3) 
 sum(QC.mit)
-# 1868
+# 3073
 
 attr(QC.mit,"thresholds")
 #  lower  higher 
-#-Inf 8.718131 
+#-Inf 12.15521 
 
 QC.expr <- isOutlier(df$detected, log=TRUE, type="lower",nmads = 3) 
 sum(QC.expr)
-# 675
+# 858
 
 attr(QC.expr,"thresholds")
 #lower   higher 
-#546.1979       Inf 
+#555.0018      Inf 
 
 #cells that would be thrown away only for one reason 
 sum(QC.mit != QC.expr)
-#   1835
+#   2983
 
 colData(sce) <- cbind(colData(sce), df)
 sce$discard <- as.logical(QC.mit+QC.expr)
@@ -348,7 +226,6 @@ sce.damaged <- logNormCounts(sce.damaged)
 lost <- calculateAverage(counts(sce.damaged))
 kept <- calculateAverage(counts(sce[,!sce$discard]))
 
-
 logged <- edgeR::cpm(cbind(lost, kept), log=TRUE, prior.count=2)
 logFC <- logged[,1] - logged[,2]
 abundance <- rowMeans(logged)
@@ -366,23 +243,16 @@ topGenes.damaged.id <- order(MeanAbundance.damaged,decreasing = TRUE)[1:30]
 topGenes.damaged <- rownames(sce.damaged)[topGenes.damaged.id]
 #MeanAbundance.damaged[topGenes.damaged.id]
 rowData(sce[names(MeanAbundance.damaged[topGenes.damaged.id])])$SYMBOL
-# "mt-Atp6" "mt-Co3"  "mt-Co2"  "mt-Co1"  "mt-Cytb" "mt-Nd4"  "mt-Nd2"  "Cst3"    "mt-Nd1"  "Apoe"   
-# [11] "Tmsb4x"  "Fth1"    "Actb"    "Tpt1"    "Rpl13"   "mt-Nd5"  "Eef1a1"  "Rplp1"   "Itm2b"   "H2-D1"  
-# [21] "Rps8"    "Fau"     "mt-Nd3"  "Rps29"   "H3f3b"   "Ftl1"    "Rpl41"   "Ctsd"    "Rps24"   "Rpl27a" 
+# [1] "mt-Atp6" "mt-Co3"  "mt-Co2"  "mt-Co1"  "mt-Cytb" "mt-Nd4"  "mt-Nd2"  "mt-Nd1"  "Apoe"    "Cst3"   
+# [11] "mt-Nd5"  "Sparcl1" "Fth1"    "mt-Nd3"  "Atp1a2"  "Actb"    "Lars2"   "Tmsb4x"  "Mt1"     "mt-Nd4l"
+# [21] "Itm2b"   "Son"     "Slc1a2"  "Tpt1"    "Ckb"     "Qk"      "Psap"    "Macf1"   "Cd81"    "Rpl13" 
 
 
 sce <- sce[,!sce$discard]
-dim(sce)
-#  22542 19509
+dim(sce) #22542 34022
 
-## Save filtered Data to my dir
-#saveRDS(sce,"Rdata/sce_filtered.rds")
-
-
-
-###
-# AFter cleanup
-
+########
+## DEMULTIPLEXING after QC
 
 sce2 <- sce[,colData(sce)$Experiment == "2"]
 sce1 <- sce[,colData(sce)$Experiment == "1"]
@@ -405,7 +275,7 @@ df.plot <- data.frame(logUMIs = logUMIs,
                       logHTOs = logHTOs,
                       compartment = colData(sce1)$SampleName)
 
-pdf("plots/Exp1_HtosVsUmis_afterQC.pdf")
+pdf("FIGURES/01_Exp1_HtosVsUmis_afterQC.pdf")
 ggplot(df.plot, aes(logUMIs,logHTOs,color = compartment) ) + geom_point() + ggtitle("Exp1, HTOs vs UMI exprs")
 dev.off()
 
@@ -416,7 +286,7 @@ df.plot.2 <- data.frame(logUMIs.2 = logUMIs.2,
                         logHTOs.2 = logHTOs.2,
                         compartment = colData(sce2)$SampleName)
 
-pdf("plots/Exp2_HtosVsUmis_afterQC.pdf")
+pdf("FIGURES/01_Exp2_HtosVsUmis_afterQC.pdf")
 ggplot(df.plot.2, aes(logUMIs.2,logHTOs.2,color = compartment) ) + geom_point()  + ggtitle("Exp2, HTOs vs UMI exprs")
 dev.off()
 
@@ -430,7 +300,7 @@ df.plot.HTOs.1 <- data.frame(log10(t(hto.counts.s1)+1),
 df.plot.HTOs.2 <- data.frame(log10(t(hto.counts.s2)+1),
                              compartment = colData(sce2)$SampleName)
 
-pdf("plots/HTOs_afterQC.pdf")
+pdf("FIGURES/01_HTOs_afterQC.pdf")
 ggplot(df.plot.HTOs.1, aes(HCC1954,MDA231,color = compartment) ) + geom_point() + ggtitle("Exp1, HTOs")
 ggplot(df.plot.HTOs.2, aes(HCC1954,MDA231,color = compartment) ) + geom_point() + ggtitle("Exp2, HTOs")
 dev.off()
@@ -460,7 +330,7 @@ summary(colSums(hto.counts.s2))
 #it establishes ambient profile of HTOs and then test the cells on that...should do it SampleSpecific
 set.seed(101)
 hash.stats.s1 <- hashedDrops(hto.counts.s1,constant.ambient=TRUE) #have only 2 conds
-#hash.stats.s1b <- hashedDrops(hto.counts.s1,constant.ambient=FALSE)
+
 set.seed(110)
 hash.stats.s2 <- hashedDrops(hto.counts.s2,constant.ambient=TRUE)
 
@@ -470,7 +340,7 @@ df.plot.HTOs.1$Confident <- hash.stats.s1$Confident
 df.plot.HTOs.2 <- df.plot.HTOs.2[colnames(hto.counts.s2),]
 df.plot.HTOs.2$Confident <- hash.stats.s2$Confident
 
-pdf("plots/HTOs_afterQC_confidence.pdf")
+pdf("FIGURES/01_HTOs_afterQC_confidence.pdf")
 ggplot(df.plot.HTOs.1, aes(HCC1954,MDA231,color = Confident) ) + geom_point() + ggtitle("Exp1, HTOs")
 ggplot(df.plot.HTOs.2, aes(HCC1954,MDA231,color = Confident) ) + geom_point() + ggtitle("Exp2, HTOs")
 dev.off()
@@ -501,7 +371,7 @@ h4 <-  hist(log10(hto.counts.s2[1,]), breaks = 30)
 h4line <- abline(v=log10(metadata(hash.stats.s2)$ambient[1]), col="red", lty=2)
 
 
-pdf("plots/HTOs_profiles_ambient_estimation.pdf")
+pdf("FIGURES/01_HTOs_profiles_ambient_estimation.pdf")
 par(mfrow=c(2,2))
 gridExtra::grid.arrange(
   plot(h1, col = c1, xlab="Log[10] HCC1954 counts, Exp 1", main=""),
@@ -529,7 +399,7 @@ h1.conf <-  hist(log10(hto.counts.s1[1,hash.stats.s1$Confident & hash.stats.s1$B
 h2.conf <-  hist(log10(hto.counts.s1[2,hash.stats.s1$Confident & hash.stats.s1$Best == 2]), breaks = 30)
 
 
-pdf("plots/HTOs_assignment_exp1.pdf")
+pdf("FIGURES/01_HTOs_assignment_exp1.pdf")
 par(mfrow=c(1,2))
 gridExtra::grid.arrange(
   plot(h1.conf, col = c1, xlab="Log[10] HCC1954 counts, Exp 1", main="Assigned to condition"),
@@ -543,7 +413,6 @@ dev.off()
 
 
 #mostly low count data, those which were not distinguishable with logFC1
-
 hto.confident.s1 <- hto.counts.s1[,hash.stats.s1$Confident]
 hto.confident.s2 <- hto.counts.s2[,hash.stats.s2$Confident]
 summary(colSums(hto.confident.s1))
@@ -562,7 +431,7 @@ hash.stats.s2[hash.stats.s2$Total == 461243,]
 #  Stroma_2-CCACCATTCAACGTGT        NA      TRUE
 
 
-hto.confident.s2[,"Stroma_2-CCACCATTCAACGTGT"] #apparently cluster
+hto.confident.s2[,"Stroma_2-CCACCATTCAACGTGT"] #apparently cluster (doublet)
 #MDA231 HCC1954 
 #1966  459277 
 
@@ -575,17 +444,17 @@ color_Confident.s1 = c("black","green")[as.factor(hash.stats.s1$Confident )]
 r.s2 <- rank(-hash.stats.s2$Total)
 color_Confident.s2 = c("black","green")[as.factor(hash.stats.s2$Confident )]
 
-pdf("plots/HashTag_RankExp1.pdf", width = 10, height = 5)
+pdf("FIGURES/01_HashTag_RankExp1.pdf", width = 10, height = 5)
 plot(r.s1, hash.stats.s1$Total, log="xy", xlab="Rank", ylab="Total HTO count", main="Confidently assigned, Exp1",col=color_Confident.s1 )
 dev.off()
-pdf("plots/HashTag_RankExp2.pdf", width = 10, height = 5)
+pdf("FIGURES/01HashTag_RankExp2.pdf", width = 10, height = 5)
 plot(r.s2, hash.stats.s2$Total, log="xy", xlab="Rank", ylab="Total HTO count", main="Confidently assigned, Exp2",col=color_Confident.s2 )
 dev.off()
 
 
 #HereExp 1
 #total hashcount over 100
-#metadata(hash.stats.s1)$ambient %>% sum
+#metadata(hash.stats.s1)$ambient %>% sum  #90.33731
 hash.stats.s1$Confident[hash.stats.s1$Total < 90] %>% table
 #FALSE  TRUE 
 #6953   293    ...we do not trust these
@@ -614,7 +483,7 @@ sce1$cell.line <- Ht[hash.stats.s1$Best]
 
 #Here Exp2
 #total hashcount over 100
-#metadata(hash.stats.s2)$ambient %>% sum
+#metadata(hash.stats.s2)$ambient %>% sum #52.65165
 hash.stats.s2$Confident[hash.stats.s2$Total < 50] %>% table
 #FALSE  TRUE 
 #4460   187    ...we do not trust these
@@ -630,7 +499,7 @@ table(hash.stats.s2$Best[hash.stats.s2$Confident])
 #    1    2 
 #2015 2837 
 
-rownames(hto.counts.s2)
+rownames(hto.counts.s2) #here swapped
 #1 = "MDA231", 2 =  "HCC1954"
 
 # Hashtag Antibodies
@@ -647,13 +516,9 @@ sce2$cell.line <- Ht.2[hash.stats.s2$Best]
 
 
 
-sce <- cbind(sce1,sce2) #COmbine back
+sce <- cbind(sce1,sce2) #Combine back
 
 
 ## Save Data to my dir
 #saveRDS(sce,"Rdata/sce_demultiplexed_cleaned.rds")
-
-# Read-in data 
-#sce <- readRDS("Rdata/sce_demultiplexed_cleaned.rds")
-
 
