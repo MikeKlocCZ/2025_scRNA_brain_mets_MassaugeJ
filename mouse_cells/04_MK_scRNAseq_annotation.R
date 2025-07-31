@@ -1,6 +1,9 @@
 
 ##
 #  annotation using singleR and multiple reference data sets
+# main reference is Allen Brain Atlas, however, since we are looking into metastatic brain
+# we also use another reference like ImmGen to capture immune cells that might not be necessarily tissue resident
+#
 #  from Masague paper, GSE223309
 
 #Use Bioconductor 3.21 (R 4.5)
@@ -20,18 +23,6 @@ suppressPackageStartupMessages({
   invisible(lapply(pkg, library, character.only = TRUE))
 })
 
-# To get more reference data sets: use loomR
-# Install devtools from CRAN
-install.packages("devtools")
-
-# Use devtools to install hdf5r and loomR from GitHub to use loom format
-devtools::install_github(repo = "hhoeflin/hdf5r")
-devtools::install_github(repo = "mojaveazure/loomR", ref = "develop")
-library(loomR)
-
-#SeuratDisk
-remotes::install_github("mojaveazure/seurat-disk")
-library(SeuratDisk)
 
 #====
 # STEP 1: upload the fileterd data after QC and doublets removal, also upload the se with pseudobulks
