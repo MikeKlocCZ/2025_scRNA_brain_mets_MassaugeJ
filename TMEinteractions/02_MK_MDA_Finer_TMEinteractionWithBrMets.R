@@ -1,32 +1,27 @@
-## Set top directory
-#Sys.setenv(DISPLAY="localhost:15.0")
+## Interaction between TME and cancer cells
+#  from Masague paper, GSE223309
+
+#Use Bioconductor 3.21 (R 4.5)
+if (!require("BiocManager")) install.packages("BiocManager"); BiocManager::install(version = "3.21" ,force = TRUE)
 
 
-mydir <- "/scicore/home/bentires/GROUP/michal/rafaeva__maria/GSE223309_2023/human_data/starsolo_mapping_workflow/TMEinteractions"    # CHANGE!! working dir
-setwd(mydir)
+pkg <- c("SingleCellExperiment",  "edgeR", "scuttle", "bluster", "Seurat",
+         "scater", "scran", "umap", "tidyverse", "cowplot", "batchelor",
+         "BiocParallel", "BiocSingular", "pheatmap")
 
+pkg.install <- setdiff(pkg, rownames(installed.packages()))
+if (length(pkg) > 0) {
+  BiocManager::install(pkg.install)
+}
 ## Load packages
 suppressPackageStartupMessages({
-  library(tibble)
-  library(dplyr)
-  library(tidyr)
-  library(ggplot2)
-  library(tidyverse)
-  library(pheatmap)
-  library(Seurat)
-  library(scran)
-  library(RColorBrewer)
-  library(cowplot)
-  library(ggpubr)
-  library(scater)
-  library(velociraptor)
+  invisible(lapply(pkg, library, character.only = TRUE))
 })
 
-#library(devtools)
-#devtools::install_github("saeyslab/nichenetr",lib="/scicore/home/bentires/myberi81/R/x86_64-pc-linux-gnu-library/4.3")
+library(nichenetr)
 
-#SETP 1: read the nichenet model
-nichenet.dir <-  "/scicore/home/bentires/GROUP/michal/NicheNet_resources"   
+#SETP 1: read the nichenet model (saved locally)
+nichenet.dir <-  "../NicheNet_resources"    
 lr_network <- readRDS(file.path(nichenet.dir,"human/lr_network.human.rds" ))
 ligand_target_matrix <- readRDS(file.path(nichenet.dir,"human/ligand_target_matrix.human.rds" ))
 weighted_networks <- readRDS(file.path(nichenet.dir,"human/weighted_networks.human.rds" ))
@@ -54,21 +49,13 @@ head(weighted_networks$lr_sig) # interactions and their weights in the ligand-re
 
 head(weighted_networks$gr) # interactions and their weights in the gene regulatory network
 
-library(nichenetr)
-#: FROM stroma (mouse), TO cancer (human)
-#convert genes to mouse (1-to-1 orthologs)
-#lr_network = lr_network %>% mutate(from = convert_human_to_mouse_symbols(from), to = to) %>% drop_na()
-#colnames(ligand_target_matrix) = ligand_target_matrix %>% colnames() %>% convert_human_to_mouse_symbols()
-#ligand_target_matrix = ligand_target_matrix %>% .[!is.na(rownames(ligand_target_matrix)), !is.na(colnames(ligand_target_matrix))]
-#weighted_networks_lr = weighted_networks_lr %>% mutate(from = convert_human_to_mouse_symbols(from), to = to) %>% drop_na()
-
-
 #
 # get the relevant gene sets
 #
 
 ## receiver ..CANCER
 receiver <- "cancer"
+#This file is produced by 04_MK_cancer_scRNAseq_getExpressedGenes.R, or available in input_data folder
 expressed_genes_receiver <- read.csv("MDAbr_expressed_genes.csv",header = T)[,1] #just gene names, symbols
 expressed_genes_receiver <- convert_alias_to_symbols(expressed_genes_receiver , "human", verbose = FALSE)
 background_expressed_genes <- expressed_genes_receiver %>% .[. %in% rownames(ligand_target_matrix)] #3217
@@ -79,14 +66,15 @@ background_expressed_genes <- expressed_genes_receiver %>% .[. %in% rownames(lig
 
 #extract table from pdf
 library(readxl)
-geneset_oi  <- read_excel("DiffExp_MDA_BtVsParental.xlsx",col_names = FALSE) %>% unlist %>% unique #242
+#this is a list of genes differentially expressed between the brain-tropic MDA231 cells and parental
+geneset_oi  <- read_excel("input_data/DiffExp_MDA_BtVsParental.xlsx",col_names = FALSE) %>% unlist %>% unique #242
                
 geneset_oi <- geneset_oi %>% .[. %in% rownames(ligand_target_matrix)] 
 geneset_oi <- convert_alias_to_symbols(geneset_oi, "human", verbose = FALSE)
 
 ## sender .. stroma
 sender_celltypes <-  "TME"
-dir.TME <- "/scicore/home/bentires/GROUP/michal/rafaeva__maria/GSE223309_2023/mouse_data/starsolo"
+dir.TME <-  "../mouse_cells/"
 sce.TME <- readRDS(file.path(dir.TME,"Rdata/sce_fineAnnotation.rds")) #reduce to the cell types we are interested in (increased presence in in TME)
 
 selection <- c("Vascular endothelial cells, capillary" , "Vascular endothelial cells, venous" , "Microglia", "Olfactory ensheathing cells",
@@ -111,7 +99,7 @@ for(cell.type in cell.types){
   #filter unexpressed genes
   keep_feature <- rowSums(counts(sce.cell.type) > 5) > 10
   #
-  sum(keep_feature) #10016
+  sum(keep_feature) 
   sce.cell.type <- sce.cell.type[keep_feature,]
   rowData(sce.cell.type)$hugo.symbols <- rownames(sce.cell.type) %>% convert_mouse_to_human_symbols %>%
     convert_alias_to_symbols( "human", verbose = FALSE)
@@ -143,7 +131,7 @@ for(cell.type in cell.types){
   best_upstream_ligands <- ligand_activities %>% top_n(20, aupr_corrected) %>% arrange(-aupr_corrected) %>% pull(test_ligand)
  # head(best_upstream_ligands)
   
-  write.csv(ligand_activities %>% top_n(20, aupr_corrected) %>% arrange(-aupr_corrected), paste0("top20_predictedLigandsMDA_",cell.type ,".csv"))
+  write.csv(ligand_activities %>% top_n(20, aupr_corrected) %>% arrange(-aupr_corrected), paste0("tables/top20_predictedLigandsMDA_",cell.type ,".csv"))
   
   # show histogram of ligand activity scores
   p_hist_lig_activity <- ggplot(ligand_activities, aes(x=aupr_corrected)) + 
@@ -154,7 +142,7 @@ for(cell.type in cell.types){
     theme_classic()
   
   
-  pdf(paste0("figures/MDA_ligands_histogram_",cell.type, "_on_mets.pdf"), width = 5, height = 5)
+  pdf(paste0("FIGURES/05_MDA_ligands_histogram_",cell.type, "_on_mets.pdf"), width = 5, height = 5)
   p_hist_lig_activity + ggtitle(paste("MDA cancer cells affected by ",cell.type))
   dev.off()
   
@@ -183,14 +171,15 @@ for(cell.type in cell.types){
     ids.keep <- lapply(kept, str_remove,".*__") %>% unlist %>% as.numeric
     sce.sel.nonunique <-  sce.sel.nonunique[ids.keep,]#
   
-    sce.sel <- rbind(sce.sel.unique,sce.sel.nonunique)}
+    sce.sel <- rbind(sce.sel.unique,sce.sel.nonunique)
+    }
   
   seuratObj <- as.Seurat(sce.sel,counts = "counts",
                          data = "logcounts")
   
   Idents(seuratObj)  <- colLabels(sce.sel)
   rotated.dotplot <-  DotPlot(seuratObj, features = best_upstream_ligands %>% rev(), cols = "RdYlBu") + RotatedAxis()
-  pdf(paste0("figures/MDA_dotplot_",cell.type,".pdf"), width = 7, height = 4)
+  pdf(paste0("FIGURES/05_MDA_dotplot_",cell.type,".pdf"), width = 7, height = 4)
   print(rotated.dotplot )
   dev.off()
   
@@ -211,7 +200,7 @@ for(cell.type in cell.types){
   p_ligand_target_network <- vis_ligand_target %>% make_heatmap_ggplot(paste0("Prioritized ",cell.type, "-ligands"),"differentially expressed genes in malignant cells", color = "purple",legend_position = "top", x_axis_position = "top",legend_title = "Regulatory potential") + scale_fill_gradient2(low = "whitesmoke",  high = "purple", breaks = c(0,0.1,0.2)) + theme(axis.text.x = element_text(face = "italic"))
   
   
-  pdf(paste0("figures/MDA_target_regulatory_potential",cell.type, "_on_mets.pdf"), width = 8, height = 5)
+  pdf(paste0("FIGURES/05_MDA_target_regulatory_potential",cell.type, "_on_mets.pdf"), width = 8, height = 5)
   print(p_ligand_target_network)
   dev.off()
   
@@ -246,7 +235,7 @@ for(cell.type in cell.types){
   p_ligand_receptor_network = vis_ligand_receptor_network %>% t() %>% make_heatmap_ggplot(paste("Prioritized ",cell.type, "-ligands"),"Receptors expressed by malignant cells", color = "mediumvioletred", x_axis_position = "top",legend_title = "Prior interaction potential")
   
   
-  pdf(paste0("figures/MDA_ligand_receptor_regulatory_potential",cell.type, "_on_mets.pdf"), width = 8, height = 5)
+  pdf(paste0("FIGURES/05_MDA_ligand_receptor_regulatory_potential",cell.type, "_on_mets.pdf"), width = 8, height = 5)
   print(p_ligand_receptor_network)
   dev.off()
   
@@ -274,24 +263,14 @@ for(cell.type in cell.types){
   barplot.location <- ggplot(data.norm[data.norm$condition == "MDA231",], aes(fill=location, y=scaling.condition, x=cluster)) + 
     geom_bar(position="fill", stat="identity") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + ggtitle("Normalized proportions,MDA231")
   
-  pdf(paste0("figures/MDA_Barplot_location_",cell.type,".pdf"), width = 8, height = 4.5)
+  pdf(paste0("FIGURES/05_MDA_Barplot_location_",cell.type,".pdf"), width = 8, height = 4.5)
    print(barplot.location)
   dev.off()
   
-  #TSNES + velocity
-  dec.cell.type <- modelGeneVar(sce.cell.type)
-  top.hvgs.cell.type <- getTopHVGs(dec.cell.type, n=2000)
-  velo.out.cell.type <- scvelo(sce.cell.type, subset.row=top.hvgs.cell.type, assay.X="spliced")
-  
-  sce.cell.type$velocity_pseudotime <- velo.out.cell.type$velocity_pseudotime
-  embedded.TSNE <- embedVelocity(reducedDim(sce.cell.type, "TSNE"), velo.out.cell.type)
-  grid.df <- gridVectors(sce.cell.type, embedded.TSNE, use.dimred = "TSNE")
-  
-  
+  #TSNES
+
   tsne1 <- plotReducedDim(sce.cell.type[,sce.cell.type$cell.line == "MDA231"], "TSNE", colour_by="FinerClusters", text_colour = "black", text_by="FinerClusters",text_size = 4,add_legend = FALSE) +ggtitle("MDA231")
-  tsne.velo <- plotTSNE(sce.cell.type[,sce.cell.type$cell.line == "MDA231"], colour_by="velocity_pseudotime") +
-    geom_segment(data=grid.df, mapping=aes(x=start.1, y=start.2, 
-                                           xend=end.1, yend=end.2, colour=NULL), arrow=arrow(length=unit(0.05, "inches"))) 
+  tsne.full <- plotReducedDim(sce.TME[,sce.TME$cell.line == "MDA231"], "TSNE", colour_by="FinerClusters", text_colour = "black", text_by="FinerClusters",text_size = 4,add_legend = FALSE) +ggtitle("MDA231")
   
   #combined plot
   # Combine figures and legend separately
@@ -302,7 +281,7 @@ for(cell.type in cell.types){
     p_ligand_receptor_network + theme(legend.position = "bottom", axis.ticks = element_blank()) + theme(axis.title.x = element_text()) + ylab(""),
     align = "hv",
     nrow = 1,
-    rel_widths = c(60, 80, 80))
+    rel_widths = c(0.8, 2, 1.5))
   
   #print(figures_toprow)
   
@@ -313,22 +292,22 @@ for(cell.type in cell.types){
     barplot.location + theme( legend.position = "top", axis.ticks = element_blank()) + theme(axis.title.x = element_text()) + ylab(""),
     align = "hv",
     nrow = 1,
-    rel_widths = c(1, 0.8))
+    rel_widths = c(1, 1))
   #print(figures_bottomprow)
   
   figures_tsnes <- cowplot::plot_grid(
     tsne1 + theme(legend.position = "none", axis.ticks = element_blank(), axis.title.x = element_text(size = 12),
                             axis.text.y = element_text(face = "italic", size = 9), axis.text.x = element_text(size = 9,  angle = 90,hjust = 0)) +
       ylab("") + xlab("") + scale_y_discrete(position = "right"),
-    tsne.velo + theme( legend.position = "top", axis.ticks = element_blank()) + theme(axis.title.x = element_text()) + ylab(""),
+    tsne.full,
     align = "h",
     nrow = 1,
-    rel_widths = c(1, 0.8))
+    rel_widths = c(1, 1))
   #print(figures_tsnes)
   
   combined_plot <- cowplot::plot_grid(figures_toprow, figures_bottomprow, figures_tsnes ,nrow = 3, align = "hv") 
   
-  pdf(paste0("figures/MDA231_CombinedNicheNet_",cell.type,".pdf"), width = 18, height = 15)
+  pdf(paste0("FIGURES/05_MDA231_CombinedNicheNet_",cell.type,".pdf"), width = 20, height = 18)
   print(combined_plot)
   dev.off()
 }
