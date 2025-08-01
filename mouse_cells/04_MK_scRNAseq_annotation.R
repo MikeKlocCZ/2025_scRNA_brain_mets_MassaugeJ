@@ -14,9 +14,9 @@ pkg <- c("SingleCellExperiment",  "edgeR", "scuttle","Seurat",
          "scater", "scran", "umap", "tidyverse", "SingleR", "celldex",
          "BiocParallel", "BiocSingular", "pheatmap")
 
-pkg <- setdiff(pkg, rownames(installed.packages()))
+pkg.install <- setdiff(pkg, rownames(installed.packages()))
 if (length(pkg) > 0) {
-  BiocManager::install(pkg)
+  BiocManager::install(pkg.install)
 }
 ## Load packages
 suppressPackageStartupMessages({
