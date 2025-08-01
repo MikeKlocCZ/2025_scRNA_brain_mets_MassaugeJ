@@ -10,4 +10,6 @@ The analysis contains the following steps:
 - batch correction
 - cell annotation using multiple references (Allen brain atlas, ImmGen)
 
-![Mouse cells](https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassaugeJ/blob/main/figures_examples/04_TSNE_annotation-0.png)
+![Mouse cells](https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassaugeJ/blob/main/figures_examples/04_TSNE_annotation-0.png "Annotated mouse cells")
+
+<img src="https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassaugeJ/blob/main/figures_examples/04_TSNE_annotation-0.png " width="48">
