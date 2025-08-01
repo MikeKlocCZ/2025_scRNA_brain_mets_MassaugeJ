@@ -12,4 +12,6 @@ The analysis contains the following steps:
 
 ![Mouse cells](https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassaugeJ/blob/main/figures_examples/04_TSNE_annotation-0.png "Annotated mouse cells")
 
-<img src="https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassaugeJ/blob/main/figures_examples/04_TSNE_annotation-0.png " width="48">
+We also included cell-cycle analysis (using cyclone) and in the case of Microglia (the biggest cell population) we performed pseudotime analysis using scVelo (wrapped in a velociraptor R package)
+
+<img src="https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassaugeJ/blob/main/figures_examples/05_TSNE_velocity.png " width="600">
