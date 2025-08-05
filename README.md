@@ -10,16 +10,16 @@ The analysis contains the following steps:
 - batch correction
 - cell annotation using multiple references (Allen brain atlas, ImmGen)
 
-![Mouse cells](https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassaugeJ/blob/main/figures_examples/04_TSNE_annotation-0.png "Annotated mouse cells")
+![Mouse cells](https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassagueJ/blob/main/figures_examples/04_TSNE_annotation-0.png "Annotated mouse cells")
 
 We also included cell-cycle analysis (using cyclone) and in the case of Microglia (the biggest cell population) we performed pseudotime analysis using scVelo (wrapped in a velociraptor R package)
 
-<img src="https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassaugeJ/blob/main/figures_examples/05_TSNE_velocity.png " width="600">
+<img src="https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassagueJ/blob/main/figures_examples/05_TSNE_velocity.png " width="600">
 
 The main goal of the analysis was to identify putative signals from the TME towards the cancer cells that support their metastatic collonization. To that end, we used  [NicheNet](https://nichenet.be) -- a modeling toolkit that infers intercellular communication. It contains curated signaling networks from multiple public data sources that link active **ligand-receptor** pairs with **target genes** , e. g. those that are differentially expressed upon the signalling. To run this analysis, one needs a set of potential ligands (genes expressed in a given subset of TME cells, for example Microglia subclusters), potential receptors (genes expressed by the cancer cells) and a set of differentially expressed genes in the cancer cells between the brain-tropic and parental lines (obtained from literature).  
 
 Here is an example of the analysis for MDA231 cell line and microglia subsets,
-![Cell-cell interaction analysis](https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassaugeJ/blob/main/figures_examples/05_CombinedMicroglia.png "Cell-cell interaction analysis")
+![Cell-cell interaction analysis](https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassagueJ/blob/main/figures_examples/05_CombinedMicroglia.png "Cell-cell interaction analysis")
 
 ## How to run the analysis
 The data needed to run the analysis are in a [Zenodo](https://zenodo.org/records/16743286) repository. The content of the `*_input_data` folders needs to copied to the respective input_data folders in this github folder structure. So, `cancer_cells_input_data` should be copied to `cancer_cells/input_data` etc.
