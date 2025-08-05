@@ -21,5 +21,5 @@ The main goal of the analysis was to identify putative signals from the TME towa
 Here is an example of the analysis for MDA231 cell line and microglia subsets,
 ![Cell-cell interaction analysis](https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassaugeJ/blob/main/figures_examples/05_CombinedMicroglia.png "Cell-cell interaction analysis")
 
-##How to run the analysis
+## How to run the analysis
 The data needed to run the analysis are in a [Zenodo](https://zenodo.org/records/16743286) repository. The content of the `*_input_data` folders needs to copied to the respective input_data folders in this github folder structure. So, `cancer_cells_input_data` should be copied to `cancer_cells/input_data` etc.
