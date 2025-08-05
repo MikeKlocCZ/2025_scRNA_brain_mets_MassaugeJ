@@ -15,3 +15,8 @@ The analysis contains the following steps:
 We also included cell-cycle analysis (using cyclone) and in the case of Microglia (the biggest cell population) we performed pseudotime analysis using scVelo (wrapped in a velociraptor R package)
 
 <img src="https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassaugeJ/blob/main/figures_examples/05_TSNE_velocity.png " width="600">
+
+The main goal of the analysis was to identify putative signals from the TME towards the cancer cells that support their metastatic collonization. To that end, we used  [NicheNet](https://nichenet.be) -- a modeling toolkit that infers intercellular communication. It contains curated signaling networks from multiple public data sources that link active **ligand-receptor** pairs with **target genes** , e. g. those that are differentially expressed upon the signalling. To run this analysis, one needs a set of potential ligands (genes expressed in a given subset of TME cells, for example Microglia subclusters), potential receptors (genes expressed by the cancer cells) and a set of differentially expressed genes in the cancer cells between the brain-tropic and parental lines (obtained from literature).  
+
+Here is an example of the analysis for MDA231 cell line and microglia subsets,
+![Cell-cell interaction analysis](https://github.com/MikeKlocCZ/2025_scRNA_brain_mets_MassaugeJ/blob/main/figures_examples/05_CombinedMicroglia.png "Cell-cell interaction analysis")
